@@ -1,35 +1,74 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { useState } from "react";
+import SplashScreen from "./components/SplashScreen";
+import Login from "./components/Login";
+import Dashboard from "./components/Dashboard";
+import Notifications from "./components/Notifications";
+import Agenda from "./components/Agenda";
+import Grades from "./components/Grades";
+import BottomNav from "./components/BottomNav";
+import "./index.css";
 
-function App() {
-  const [count, setCount] = useState(0)
+export default function App() {
+  const [showSplash, setShowSplash] = useState(true);
+
+  const [user, setUser] = useState(() => {
+    const savedUser = localStorage.getItem("user");
+    return savedUser ? JSON.parse(savedUser) : null;
+  });
+
+  const [currentPage, setCurrentPage] = useState("home");
+
+  const handleLogin = (userData) => {
+    setUser(userData);
+    localStorage.setItem("user", JSON.stringify(userData));
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    setCurrentPage("home");
+  };
+
+  const renderPage = () => {
+    switch (currentPage) {
+      case "home":
+        return (
+          <Dashboard
+            user={user}
+            onNavigate={setCurrentPage}
+            onLogout={handleLogout}
+          />
+        );
+      case "notifications":
+        return <Notifications />;
+      case "agenda":
+        return <Agenda />;
+      case "grades":
+        return <Grades />;
+      default:
+        return (
+          <Dashboard
+            user={user}
+            onNavigate={setCurrentPage}
+            onLogout={handleLogout}
+          />
+        );
+    }
+  };
+
+  if (showSplash) {
+    return <SplashScreen onComplete={() => setShowSplash(false)} />;
+  }
+
+  if (!user) {
+    return <Login onLogin={handleLogin} />;
+  }
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+    <div className="min-h-screen bg-slate-50">
+      {renderPage()}
+      <BottomNav currentPage={currentPage} onNavigate={setCurrentPage} />
+    </div>
+  );
 }
-
-export default App

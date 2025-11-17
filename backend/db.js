@@ -1,17 +1,13 @@
-import sqlite3 from "sqlite3";
-import { open } from "sqlite";
+import Database from "better-sqlite3";
 import bcrypt from "bcryptjs";
 
 let db;
 
 export async function initDatabase() {
-  db = await open({
-    filename: "./school.db",
-    driver: sqlite3.Database,
-  });
+  db = new Database("./school.db");
 
   // Create tables
-  await db.exec(`
+  db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       email TEXT UNIQUE NOT NULL,
@@ -73,82 +69,73 @@ export async function initDatabase() {
     );
   `);
 
-  // Insert sample data
-  await insertSampleData();
-
+  insertSampleData();
   console.log("✅ Database initialized successfully");
   return db;
 }
 
-async function insertSampleData() {
-  // Check if data already exists
-  const userCount = await db.get("SELECT COUNT(*) as count FROM users");
+function insertSampleData() {
+  const userCount = db.prepare("SELECT COUNT(*) as count FROM users").get();
   if (userCount.count > 0) return;
 
-  // Create sample parent user
-  const hashedPassword = await bcrypt.hash("password123", 10);
-  const result = await db.run(
-    "INSERT INTO users (email, password, name, role) VALUES (?, ?, ?, ?)",
-    ["parent@example.com", hashedPassword, "Sarah Ahmad", "parent"]
+  const hashedPassword = bcrypt.hashSync("password123", 10);
+  const userInsert = db.prepare(
+    "INSERT INTO users (email, password, name, role) VALUES (?, ?, ?, ?)"
   );
-  const parentId = result.lastID;
+  const userResult = userInsert.run([
+    "parent@example.com",
+    hashedPassword,
+    "Sarah Ahmad",
+    "parent",
+  ]);
+  const parentId = userResult.lastInsertRowid;
 
-  // Create sample student
-  const studentResult = await db.run(
-    "INSERT INTO students (student_code, name, grade, parent_id) VALUES (?, ?, ?, ?)",
-    ["QE2025", "Ahmad Khalil", "7th Grade", parentId]
+  const studentInsert = db.prepare(
+    "INSERT INTO students (student_code, name, grade, parent_id) VALUES (?, ?, ?, ?)"
   );
-  const studentId = studentResult.lastID;
+  const studentResult = studentInsert.run([
+    "QE2025",
+    "Ahmad Khalil",
+    "7th Grade",
+    parentId,
+  ]);
+  const studentId = studentResult.lastInsertRowid;
 
-  // Insert sample notifications
-  await db.run(`
+  db.exec(`
     INSERT INTO notifications (title, message, type, date) VALUES
-    ('Parent-Teacher Meeting', 'Annual parent-teacher meeting scheduled for next Thursday at 3:00 PM. Please confirm your attendance.', 'event', '2025-11-14'),
-    ('Holiday Announcement', 'School will be closed on November 22nd for Independence Day celebration.', 'announcement', '2025-11-13'),
-    ('Exam Schedule Released', 'Mid-term examination schedule has been published. Please check the agenda section.', 'academic', '2025-11-12'),
-    ('Library Books Due', 'Reminder: Library books borrowed in October are due for return by November 20th.', 'reminder', '2025-11-10')
+    ('Parent-Teacher Meeting', 'Annual parent-teacher meeting scheduled for next Thursday at 3:00 PM.', 'event', '2025-11-14'),
+    ('Holiday Announcement', 'School will be closed on November 22nd for Independence Day.', 'announcement', '2025-11-13'),
+    ('Exam Schedule Released', 'Mid-term examination schedule has been published.', 'academic', '2025-11-12'),
+    ('Library Books Due', 'Library books borrowed in October are due by November 20th.', 'reminder', '2025-11-10')
   `);
 
-  // Insert sample agenda
-  await db.run(`
+  db.exec(`
     INSERT INTO agenda (date, time, subject, topic, teacher, grade) VALUES
-    ('2025-11-15', '08:00', 'Mathematics', 'Algebra - Linear Equations', 'Mr. Hassan', '7th Grade'),
-    ('2025-11-15', '09:00', 'English', 'Literature - Poetry Analysis', 'Ms. Layla', '7th Grade'),
-    ('2025-11-15', '10:00', 'Science', 'Physics - Motion and Forces', 'Dr. Fadi', '7th Grade'),
-    ('2025-11-15', '11:00', 'Arabic', 'Grammar - Sentence Structure', 'Mr. Karim', '7th Grade'),
-    ('2025-11-15', '12:00', 'Lunch Break', '', '', '7th Grade'),
-    ('2025-11-15', '13:00', 'History', 'Lebanese Independence', 'Ms. Nour', '7th Grade'),
-    ('2025-11-15', '14:00', 'Art', 'Watercolor Painting', 'Ms. Rania', '7th Grade'),
-    ('2025-11-16', '08:00', 'Science', 'Chemistry - Chemical Reactions', 'Dr. Fadi', '7th Grade'),
-    ('2025-11-16', '09:00', 'Mathematics', 'Geometry - Triangles', 'Mr. Hassan', '7th Grade'),
-    ('2025-11-16', '10:00', 'Physical Education', 'Basketball Practice', 'Coach Ali', '7th Grade'),
-    ('2025-11-16', '11:00', 'French', 'Conversation Practice', 'Mme. Sophie', '7th Grade')
+    ('2025-11-15', '08:00', 'Mathematics', 'Algebra', 'Mr. Hassan', '7th Grade'),
+    ('2025-11-15', '09:00', 'English', 'Poetry Analysis', 'Ms. Layla', '7th Grade'),
+    ('2025-11-15', '10:00', 'Science', 'Motion and Forces', 'Dr. Fadi', '7th Grade')
   `);
 
-  // Insert sample grades
   const subjects = [
     { name: "Mathematics", teacher: "Mr. Hassan", grades: [85, 92, 88] },
     { name: "English", teacher: "Ms. Layla", grades: [90, 87, 93] },
     { name: "Science", teacher: "Dr. Fadi", grades: [78, 85, 82] },
-    { name: "Arabic", teacher: "Mr. Karim", grades: [95, 92, 94] },
-    { name: "History", teacher: "Ms. Nour", grades: [88, 90, 85] },
-    { name: "French", teacher: "Mme. Sophie", grades: [82, 85, 88] },
-    { name: "Art", teacher: "Ms. Rania", grades: [95, 98, 96] },
   ];
+
+  const gradeInsert = db.prepare(
+    "INSERT INTO grades (student_id, subject, grade_value, test_number, teacher, semester) VALUES (?, ?, ?, ?, ?, ?)"
+  );
 
   for (const subject of subjects) {
     for (let i = 0; i < subject.grades.length; i++) {
-      await db.run(
-        "INSERT INTO grades (student_id, subject, grade_value, test_number, teacher, semester) VALUES (?, ?, ?, ?, ?, ?)",
-        [
-          studentId,
-          subject.name,
-          subject.grades[i],
-          i + 1,
-          subject.teacher,
-          "Fall 2025",
-        ]
-      );
+      gradeInsert.run([
+        studentId,
+        subject.name,
+        subject.grades[i],
+        i + 1,
+        subject.teacher,
+        "Fall 2025",
+      ]);
     }
   }
 
